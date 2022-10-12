@@ -1,0 +1,13 @@
+{
+  "name": "client",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@types/node": "^18.8.4",
+    "protocol": "workspace:*",
+    "typescript": "^4.8.4"
+  },
+  "scripts": {
+    "dev": "ts-node --esm --experimental-specifier-resolution node index.ts"
+  }
+}
