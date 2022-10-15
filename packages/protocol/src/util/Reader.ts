@@ -1,5 +1,7 @@
 import { TypedArrayLike } from "./TypedArrayLike";
 
+type DeserializeType<T, R, A extends any[]> = { deserialize: (reader: Reader, ...args: A) => Promise<R> };
+
 export class Reader {
     private static decoder = new TextDecoder("utf8");
     public offset: number = 0;
@@ -64,7 +66,7 @@ export class Reader {
     }
 
     public async skipPad(n: number): Promise<this> {
-        const readAmount = n % 4;
+        const readAmount = 4 - (n % 4);
         if (readAmount == 0) return this;
         await this.readBytes(readAmount);
 
@@ -81,5 +83,9 @@ export class Reader {
     public async readString(size: number): Promise<string> {
         if (size == 0) return "";
         return Reader.decoder.decode(await this.readBytes(size));
+    }
+
+    public async deserialize<T, R, A extends any[]>(type: DeserializeType<T, R, A>, ...args: A): Promise<R> {
+        return type.deserialize(this, ...args);
     }
 }

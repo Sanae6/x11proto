@@ -1,18 +1,13 @@
-import { PacketArg, Packet } from "../Packet";
 import { Writer } from "../../util/Writer";
-import { Reader } from "../../util/Reader";
+import { ClientPacket } from "../ClientPacket";
 
-export class HandshakeRequest implements Packet {
+export class HandshakeRequest implements ClientPacket {
     constructor(
         public majorVersion: number,
         public minorVersion: number,
         public authName: string,
         public authData: string
     ) {
-    }
-
-    static deserialize(_reader: Reader) {
-        throw new Error("Not implemented.");
     }
 
     serialize(): Writer {

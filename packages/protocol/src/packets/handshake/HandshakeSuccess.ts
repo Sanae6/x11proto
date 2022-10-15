@@ -1,8 +1,7 @@
-import { Packet } from "../Packet";
 import { Writer } from "../../util/Writer";
 import { Reader } from "../../util/Reader";
 
-export class HandshakeSuccess implements Packet {
+export class HandshakeSuccess {
     constructor(
         public majorVersion: number,
         public minorVersion: number,
@@ -18,50 +17,70 @@ export class HandshakeSuccess implements Packet {
         public minKeycode: number,
         public maxKeycode: number,
         public vendor: string,
-        public pixelFormats: SuccessPixelFormat[]
+        public pixelFormats: SuccessPixelFormat[],
+        public screens: SuccessScreen[]
     ) {
     }
 
     static async deserialize(reader: Reader) {
         await reader.skip(1);
-        const majorVersion = await reader.readUint8();
-        const minorVersion = await reader.readUint8();
-        const padLength = await reader.readUint16() - 8;
+        const majorVersion = await reader.readUint16();
+        const minorVersion = await reader.readUint16();
+        let padLength = await reader.readUint16() - 8;
         const releaseNum = await reader.readUint32();
         const resourceIdBase = await reader.readUint32();
         const resourceIdMask = await reader.readUint32();
         const motionBufferSize = await reader.readUint32();
         const vendorLen = await reader.readUint16();
-        const maxRequestLen = await reader.readUint8();
-        const numScreens = await reader.readUint8();
-        const numPixelFormats = await reader.readUint8();
+        const maxRequestLen = await reader.readUint16();
+        let numScreens = await reader.readUint8();
+        let numPixelFormats = await reader.readUint8();
         const imageMsbFirst = await reader.readBool();
         const bitmapMsbFirst = await reader.readBool();
         const bitmapScanUnit = await reader.readUint8();
         const bitmapScanPad = await reader.readUint8();
         const minKeycode = await reader.readUint8();
         const maxKeycode = await reader.readUint8();
+        console.log("amonges", numScreens, numPixelFormats);
+        await reader.skip(4);
         const vendor = await reader.readString(vendorLen);
-        const pixelFormats: SuccessPixelFormat[] = [];
-        while (numPixelFormats-- > 0)
+        console.log("amongelas", vendor);
+        await reader.skipPad(vendorLen)
 
-            return new HandshakeSuccess(
-                majorVersion,
-                minorVersion,
-                releaseNum,
-                resourceIdBase,
-                resourceIdMask,
-                motionBufferSize,
-                maxRequestLen,
-                imageMsbFirst,
-                bitmapMsbFirst,
-                bitmapScanUnit,
-                bitmapScanPad,
-                minKeycode,
-                maxKeycode,
-                vendor,
-                pixelFormats
-            );
+        padLength -= 2 * numPixelFormats;
+        padLength *= 4;
+        padLength -= vendorLen;
+        console.log("pad left:", padLength);
+
+        const pixelFormats: SuccessPixelFormat[] = [];
+        const screens: SuccessScreen[] = [];
+
+        while (numPixelFormats-- > 0) {
+            pixelFormats.push(await reader.deserialize(SuccessPixelFormat));
+        }
+
+        while (numScreens-- > 0) {
+            screens.push(await reader.deserialize(SuccessScreen));
+        }
+
+        return new HandshakeSuccess(
+            majorVersion,
+            minorVersion,
+            releaseNum,
+            resourceIdBase,
+            resourceIdMask,
+            motionBufferSize,
+            maxRequestLen,
+            imageMsbFirst,
+            bitmapMsbFirst,
+            bitmapScanUnit,
+            bitmapScanPad,
+            minKeycode,
+            maxKeycode,
+            vendor,
+            pixelFormats,
+            screens
+        );
     }
 
     serialize(): Writer {
@@ -69,7 +88,7 @@ export class HandshakeSuccess implements Packet {
     }
 }
 
-export class SuccessPixelFormat implements Packet {
+export class SuccessPixelFormat {
     constructor(
         public depth: number,
         public bpp: number,
@@ -94,7 +113,7 @@ export class SuccessPixelFormat implements Packet {
 
 }
 
-export class SuccessScreen implements Packet {
+export class SuccessScreen {
     constructor(
         public root: number,
         public defaultColorMap: number,
@@ -108,9 +127,10 @@ export class SuccessScreen implements Packet {
         public minInstalledMaps: number,
         public maxInstalledMaps: number,
         public rootVisual: number,
-        public backingStores: number, // todo enum
+        public backingStores: number, // todo backingStores enum
         public saveUnder: boolean,
         public rootDepth: number,
+        public depths: SuccessDepth[],
     ) {
     }
 
@@ -130,7 +150,12 @@ export class SuccessScreen implements Packet {
         const backingStores = await reader.readUint8();
         const saveUnder = await reader.readBool();
         const rootDepth = await reader.readUint8();
-        const numDepths = await reader.readUint8();
+        let numDepths = await reader.readUint8();
+        const depths: SuccessDepth[] = [];
+
+        while (numDepths-- > 0) {
+            depths.push(await reader.deserialize(SuccessDepth))
+        }
 
         return new SuccessScreen(
             root,
@@ -147,36 +172,39 @@ export class SuccessScreen implements Packet {
             rootVisual,
             backingStores,
             saveUnder,
-            rootDepth
+            rootDepth,
+            depths
         );
-    }
-
-    serialize(): Writer {
-        return undefined;
     }
 }
 
-export class SuccessDepth implements Packet {
-    constructor() {
+export class SuccessDepth {
+    constructor(
+        public depth: number,
+        public visualTypes: SuccessVisualType[]
+    ) {
     }
 
     static async deserialize(reader: Reader) {
-        const [depth, bpp, scanline] = [await reader.readUint8(), await reader.readUint8(), await reader.readUint8()];
-        await reader.skip(5);
+        const depth = await reader.readUint8();
+        await reader.skip(1);
+        let visualTypeCount = await reader.readUint16();
+        await reader.skip(4);
 
-        return new SuccessPixelFormat(
+        const visualTypes: SuccessVisualType[] = [];
+
+        while (visualTypeCount-- > 0) {
+            visualTypes.push(await reader.deserialize(SuccessVisualType));
+        }
+
+        return new SuccessDepth(
             depth,
-            bpp,
-            scanline
+            visualTypes
         );
-    }
-
-    serialize(): Writer {
-        return undefined;
     }
 }
 
-export class SuccessVisualType implements Packet {
+export class SuccessVisualType {
     constructor(
         public visualId: number,
         public classType: number,
@@ -189,17 +217,17 @@ export class SuccessVisualType implements Packet {
     }
 
     static async deserialize(reader: Reader) {
-        const [depth, bpp, scanline] = [await reader.readUint8(), await reader.readUint8(), await reader.readUint8()];
-        await reader.skip(5);
+        const [visualId, classType, bpp, colorMapEntries, redMask, greenMask, blueMask] = [await reader.readUint32(), await reader.readUint8(), await reader.readUint8(), await reader.readUint16(), await reader.readUint32(), await reader.readUint32(), await reader.readUint32()];
+        await reader.skip(4);
 
-        return new SuccessPixelFormat(
-            depth,
+        return new SuccessVisualType(
+            visualId,
+            classType,
             bpp,
-            scanline
+            colorMapEntries,
+            redMask,
+            greenMask,
+            blueMask
         );
-    }
-
-    serialize(): Writer {
-        return undefined;
     }
 }
